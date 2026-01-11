@@ -1,7 +1,7 @@
 -- ============================================
 -- MIGRACIONES PARA SISTEMA BAR
 -- ============================================
-
+USE sirius_db;
 -- 1. Tabla para códigos QR por mesa
 CREATE TABLE IF NOT EXISTS table_qr_codes (
     id INT PRIMARY KEY AUTO_INCREMENT,

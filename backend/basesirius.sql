@@ -529,6 +529,7 @@ FROM information_schema.tables
 WHERE table_schema = 'sirius_db';
 
 -- Mostrar resumen de datos insertados
+
 SELECT 
     'Usuarios' as tabla, COUNT(*) as registros FROM users
 UNION ALL
@@ -543,3 +544,198 @@ SELECT
 UNION ALL
 SELECT 
     'Configuraciones' as tabla, COUNT(*) as registros FROM settings;
+
+-- ============================================
+-- MIGRACIONES PARA SISTEMA BAR (004_bar_system.sql)
+-- ============================================
+-- 1. Tabla para códigos QR por mesa
+CREATE TABLE IF NOT EXISTS table_qr_codes (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    table_id INT NOT NULL,
+    qr_token VARCHAR(255) UNIQUE NOT NULL,
+    qr_url TEXT NOT NULL,
+    created_by INT NOT NULL COMMENT 'ID del mesero',
+    expires_at DATETIME NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (table_id) REFERENCES tables(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    INDEX idx_table_active (table_id, is_active),
+    INDEX idx_token (qr_token),
+    INDEX idx_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. Tabla para invitados/clientes
+CREATE TABLE IF NOT EXISTS table_guests (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    table_id INT NOT NULL,
+    qr_code_id INT NOT NULL,
+    guest_name VARCHAR(100) NOT NULL,
+    session_token VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(20) NULL,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (table_id) REFERENCES tables(id) ON DELETE CASCADE,
+    FOREIGN KEY (qr_code_id) REFERENCES table_qr_codes(id) ON DELETE CASCADE,
+    INDEX idx_table (table_id),
+    INDEX idx_session (session_token),
+    INDEX idx_qr (qr_code_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. Tabla para canciones
+CREATE TABLE IF NOT EXISTS song_requests (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    table_id INT NOT NULL,
+    guest_id INT NULL,
+    song_name VARCHAR(255) NOT NULL,
+    artist VARCHAR(255) NULL,
+    song_url VARCHAR(500) NULL,
+    platform ENUM('youtube', 'spotify', 'other') DEFAULT 'youtube',
+    status ENUM('pending', 'playing', 'played', 'skipped', 'rejected') DEFAULT 'pending',
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    played_at TIMESTAMP NULL,
+    duration_seconds INT NULL,
+    FOREIGN KEY (table_id) REFERENCES tables(id) ON DELETE CASCADE,
+    FOREIGN KEY (guest_id) REFERENCES table_guests(id) ON DELETE SET NULL,
+    INDEX idx_status (status),
+    INDEX idx_table (table_id),
+    INDEX idx_requested (requested_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. Modificar tabla orders para incluir guest_id
+
+-- Agregar columna guest_id a orders (ejecutar solo si no existe)
+ALTER TABLE orders ADD COLUMN guest_id INT NULL AFTER waiter_id;
+-- Agregar constraint FK a orders (ejecutar solo si no existe)
+ALTER TABLE orders ADD CONSTRAINT fk_orders_guest FOREIGN KEY (guest_id) REFERENCES table_guests(id) ON DELETE SET NULL;
+
+-- 5. Modificar tabla order_items para tracking individual
+
+-- Agregar columna guest_id a order_items (ejecutar solo si no existe)
+ALTER TABLE order_items ADD COLUMN guest_id INT NULL AFTER order_id;
+-- Agregar constraint FK a order_items (ejecutar solo si no existe)
+ALTER TABLE order_items ADD CONSTRAINT fk_order_items_guest FOREIGN KEY (guest_id) REFERENCES table_guests(id) ON DELETE SET NULL;
+
+-- 6. Nueva configuración para monto mínimo de canción
+INSERT INTO settings (setting_key, setting_value, description) 
+VALUES ('song_minimum_amount', '600000', 'Monto mínimo en COP para solicitar canción')
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
+
+-- 7. Configuración para URL del frontend (para generar QR)
+INSERT INTO settings (setting_key, setting_value, description) 
+VALUES ('frontend_url', 'http://localhost:3000', 'URL del frontend para generar códigos QR')
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
+
+-- ========================================
+-- MIGRACIÓN: Corregir triggers de totales (005_fix_order_totals_triggers.sql)
+-- ========================================
+DROP TRIGGER IF EXISTS update_order_totals_after_insert;
+DROP TRIGGER IF EXISTS update_order_totals_after_update;
+DROP TRIGGER IF EXISTS update_order_totals_after_delete;
+
+DELIMITER //
+CREATE TRIGGER update_order_totals_after_insert
+AFTER INSERT ON order_items
+FOR EACH ROW
+BEGIN
+    UPDATE orders 
+    SET 
+        subtotal = (
+            SELECT COALESCE(SUM(subtotal), 0) 
+            FROM order_items 
+            WHERE order_id = NEW.order_id
+        ),
+        tax_amount = 0,  -- IVA ya incluido en el precio
+        total = (
+            SELECT COALESCE(SUM(subtotal), 0)  -- Sin multiplicar por 1.19
+            FROM order_items 
+            WHERE order_id = NEW.order_id
+        ),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = NEW.order_id;
+END//
+
+CREATE TRIGGER update_order_totals_after_update
+AFTER UPDATE ON order_items
+FOR EACH ROW
+BEGIN
+    UPDATE orders 
+    SET 
+        subtotal = (
+            SELECT COALESCE(SUM(subtotal), 0) 
+            FROM order_items 
+            WHERE order_id = NEW.order_id
+        ),
+        tax_amount = 0,  -- IVA ya incluido en el precio
+        total = (
+            SELECT COALESCE(SUM(subtotal), 0)  -- Sin multiplicar por 1.19
+            FROM order_items 
+            WHERE order_id = NEW.order_id
+        ),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = NEW.order_id;
+END//
+
+CREATE TRIGGER update_order_totals_after_delete
+AFTER DELETE ON order_items
+FOR EACH ROW
+BEGIN
+    UPDATE orders 
+    SET 
+        subtotal = (
+            SELECT COALESCE(SUM(subtotal), 0) 
+            FROM order_items 
+            WHERE order_id = OLD.order_id
+        ),
+        tax_amount = 0,  -- IVA ya incluido en el precio
+        total = (
+            SELECT COALESCE(SUM(subtotal), 0)  -- Sin multiplicar por 1.19
+            FROM order_items 
+            WHERE order_id = OLD.order_id
+        ),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = OLD.order_id;
+END//
+DELIMITER ;
+
+-- Recalcular totales de órdenes activas existentes
+UPDATE orders o
+SET 
+    subtotal = (SELECT COALESCE(SUM(subtotal), 0) FROM order_items WHERE order_id = o.id),
+    tax_amount = 0,
+    total = (SELECT COALESCE(SUM(subtotal), 0) FROM order_items WHERE order_id = o.id)
+WHERE status = 'activo';
+
+SELECT 'Triggers actualizados y órdenes activas recalculadas correctamente' AS resultado;
+
+-- ========================================
+-- TABLA: invoices (Facturas) (create_invoices_table.sql)
+-- ========================================
+CREATE TABLE IF NOT EXISTS invoices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    table_number INT NOT NULL,
+    waiter_id INT,
+    waiter_name VARCHAR(255),
+    cashier_id INT,
+    cashier_name VARCHAR(255),
+    subtotal DECIMAL(10,2) NOT NULL,
+    tax_amount DECIMAL(10,2) DEFAULT 0.00,
+    total DECIMAL(10,2) NOT NULL,
+    payment_method ENUM('efectivo', 'tarjeta', 'nequi', 'transferencia') NOT NULL,
+    transaction_id VARCHAR(100),
+    items JSON NOT NULL, -- Información completa de los productos
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (waiter_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (cashier_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_invoices_order_id (order_id),
+    INDEX idx_invoices_created_at (created_at),
+    INDEX idx_invoices_invoice_number (invoice_number),
+    INDEX idx_invoices_waiter_id (waiter_id),
+    INDEX idx_invoices_cashier_id (cashier_id)
+);
