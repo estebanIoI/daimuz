@@ -72,7 +72,7 @@ module.exports = async function createGuest(payload) {
 
             // Actualizar estado de la mesa a ocupada
             await connection.query(
-                'UPDATE tables SET status = "ocupada", current_waiter_id = ? WHERE id = ?',
+                "UPDATE tables SET status = 'ocupada', current_waiter_id = ? WHERE id = ?",
                 [waiterId, tableId]
             );
         }
