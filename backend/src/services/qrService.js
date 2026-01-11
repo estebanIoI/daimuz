@@ -22,9 +22,10 @@ async function generateQR(tableId, waiterId) {
         const qrToken = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
         
-        // Obtener URL del frontend desde settings o variable de entorno
-        let baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        // Obtener URL del frontend - prioridad: variable de entorno > settings > default
+        let baseUrl = 'http://localhost:3000';
         
+        // Primero intentar obtener de settings
         try {
             const [settings] = await connection.query(
                 'SELECT setting_value FROM settings WHERE setting_key = ?',
@@ -35,6 +36,11 @@ async function generateQR(tableId, waiterId) {
             }
         } catch (e) {
             console.log('Using default frontend URL');
+        }
+        
+        // Variable de entorno tiene prioridad sobre settings
+        if (process.env.FRONTEND_URL) {
+            baseUrl = process.env.FRONTEND_URL;
         }
         
         const qrUrl = `${baseUrl}/cliente/${qrToken}`;
