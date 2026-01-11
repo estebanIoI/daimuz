@@ -28,7 +28,7 @@ module.exports = async function getTableGuests(payload, req) {
     `SELECT o.id, o.total, o.waiter_id, u.name as waiter_name
      FROM orders o
      LEFT JOIN users u ON o.waiter_id = u.id
-     WHERE o.table_id = ? AND o.status = 'activo'
+    WHERE o.table_id = ? AND o.status = 'activo'
      LIMIT 1`,
     [table_id]
   );

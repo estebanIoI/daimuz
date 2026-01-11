@@ -52,7 +52,7 @@ module.exports = async function createGuest(payload) {
 
         // Buscar orden activa de la mesa
         const [existingOrders] = await connection.query(
-            'SELECT id FROM orders WHERE table_id = ? AND status = "activo"',
+            "SELECT id FROM orders WHERE table_id = ? AND status = 'activo'",
             [tableId]
         );
 
