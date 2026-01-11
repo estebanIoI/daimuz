@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  frontend:
+    image: 1006946898/restaurante-sirius-frontend:latest
+    container_name: restaurante-sirius-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    restart: unless-stopped
+    networks:
+      - sirius-network
+
+networks:
+  sirius-network:
+    driver: bridge
+
+# Para desarrollo local, puedes descomentar esto:
+# volumes:
+#   - ./data:/app/data

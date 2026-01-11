@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # Backend - se levanta primero
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sirius-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_HOST=mysql-db
+      - DB_USER=root
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - DB_NAME=sirius_restaurant
+      - DB_PORT=3306
+      - DB_CONNECTION_LIMIT=20
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=24h
+      - CORS_ORIGIN=http://62.146.231.110:3000
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+    networks:
+      - sirius-network
+      - internal-network
+    restart: unless-stopped
+    depends_on:
+      - mysql-db
+
+  # Frontend - se levanta después del backend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sirius-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_API_URL=http://62.146.231.110:3001/api
+    networks:
+      - sirius-network
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # Base de datos MySQL (si no existe en el servidor)
+  mysql-db:
+    image: mysql:8.0
+    container_name: sirius-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=sirius_restaurant
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/basesirius.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - internal-network
+    restart: unless-stopped
+    ports:
+      - "3306:3306"  # Solo para administración, remover en producción
+
+networks:
+  sirius-network:
+    driver: bridge
+  internal-network:
+    external: true  # Red externa ya creada en el servidor
+
+volumes:
+  mysql_data:
+    driver: local

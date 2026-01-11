@@ -1,0 +1,20 @@
+[
+  {
+    "fileName": "backup-2025-08-09T19-37-09-314Z.sql",
+    "createdAt": "2025-08-09T19:37:09.779Z",
+    "size": 47631,
+    "createdBy": 1
+  },
+  {
+    "fileName": "backup-2025-08-09T19-49-52-179Z.sql",
+    "createdAt": "2025-08-09T19:49:52.496Z",
+    "size": 47631,
+    "createdBy": 1
+  },
+  {
+    "fileName": "backup-2025-08-09T19-50-02-622Z.sql",
+    "createdAt": "2025-08-09T19:50:02.918Z",
+    "size": 47631,
+    "createdBy": 1
+  }
+]
