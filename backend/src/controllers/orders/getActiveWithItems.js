@@ -41,6 +41,7 @@ module.exports = async function getActiveOrdersWithItems(_, req) {
             oi.subtotal,
             oi.status AS item_status,
             oi.notes,
+            oi.guest_id,
             mi.id AS menu_item_id,
             mi.name AS menu_item_name,
             mi.description,
