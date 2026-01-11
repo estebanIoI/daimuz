@@ -11,6 +11,7 @@ import MenuCatalog from '@/components/cliente/MenuCatalog';
 import CartSummary from '@/components/cliente/CartSummary';
 import SongSelector from '@/components/cliente/SongSelector';
 import GuestRegistration from '@/components/cliente/GuestRegistration';
+import PreparationStatus from '@/components/cliente/PreparationStatus';
 import { Loader2 } from 'lucide-react';
 
 interface GuestInfo {
@@ -263,13 +264,21 @@ export default function ClientePage() {
         tableTotal={tableTotal}
         minimumAmount={minimumAmount}
       />
-      
+
+      {/* Estado de preparación del pedido */}
+      <div className="container mx-auto px-4">
+        <PreparationStatus 
+          orderId={orderId}
+          guestId={guestInfo.id}
+          sessionToken={sessionToken}
+        />
+      </div>
+
       <main className="container mx-auto px-4 py-6">
         <MenuCatalog 
           onAddToCart={addToCart}
           cart={cart}
         />
-        
         {canRequestSong && (
           <SongSelector 
             tableId={guestInfo.table_id}
@@ -278,7 +287,6 @@ export default function ClientePage() {
           />
         )}
       </main>
-      
       <CartSummary 
         cart={cart}
         onUpdateQuantity={updateCartQuantity}
