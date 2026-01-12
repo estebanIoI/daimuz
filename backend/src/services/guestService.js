@@ -7,10 +7,10 @@ const db = require('../config/database');
  */
 async function registerGuest(qrToken, guestName, phone = null) {
     const connection = await db.getConnection();
-    
+
     try {
         await connection.beginTransaction();
-        
+
         // Validar QR
         const [qrRows] = await connection.query(
             `SELECT * FROM table_qr_codes 
@@ -19,31 +19,31 @@ async function registerGuest(qrToken, guestName, phone = null) {
              AND expires_at > NOW()`,
             [qrToken]
         );
-        
+
         if (qrRows.length === 0) {
             throw new Error('QR inválido o expirado');
         }
-        
+
         const qrCode = qrRows[0];
-        
+
         // Generar token de sesión
         const sessionToken = crypto.randomBytes(32).toString('hex');
-        
+
         // Insertar invitado
         const [result] = await connection.query(
             `INSERT INTO table_guests (table_id, qr_code_id, guest_name, session_token, phone) 
              VALUES (?, ?, ?, ?, ?)`,
             [qrCode.table_id, qrCode.id, guestName, sessionToken, phone]
         );
-        
+
         await connection.commit();
-        
+
         // Obtener número de mesa
         const [tableInfo] = await db.query(
             'SELECT number FROM tables WHERE id = ?',
             [qrCode.table_id]
         );
-        
+
         return {
             guestId: result.insertId,
             sessionToken,
@@ -51,7 +51,7 @@ async function registerGuest(qrToken, guestName, phone = null) {
             tableNumber: tableInfo[0]?.number,
             guestName
         };
-        
+
     } catch (error) {
         await connection.rollback();
         throw error;
@@ -62,8 +62,40 @@ async function registerGuest(qrToken, guestName, phone = null) {
 
 /**
  * Obtener información de sesión del invitado
+ * Retorna is_active para que el frontend sepa si la sesión sigue válida
  */
 async function getSessionInfo(sessionToken) {
+    // Primero buscar el guest sin importar si está activo
+    const [guestRows] = await db.query(
+        `SELECT g.id, g.guest_name, g.table_id, g.is_active, g.qr_code_id
+         FROM table_guests g
+         WHERE g.session_token = ?`,
+        [sessionToken]
+    );
+
+    if (guestRows.length === 0) {
+        throw new Error('Sesión inválida o expirada');
+    }
+
+    const guest = guestRows[0];
+
+    // Si el guest no está activo, retornar con is_active = false
+    if (!guest.is_active) {
+        const [tableInfo] = await db.query(
+            'SELECT number FROM tables WHERE id = ?',
+            [guest.table_id]
+        );
+        return {
+            id: guest.id,
+            guest_name: guest.guest_name,
+            table_id: guest.table_id,
+            table_number: tableInfo[0]?.number || 0,
+            is_active: false,
+            session_closed: true
+        };
+    }
+
+    // Si está activo, obtener toda la información
     const [rows] = await db.query(
         `SELECT g.*, t.number as table_number, t.capacity,
                 qc.qr_url, qc.qr_token
@@ -76,18 +108,91 @@ async function getSessionInfo(sessionToken) {
          AND qc.expires_at > NOW()`,
         [sessionToken]
     );
-    
+
     if (rows.length === 0) {
-        throw new Error('Sesión inválida o expirada');
+        // El guest está activo pero el QR expiró
+        const [tableInfo] = await db.query(
+            'SELECT number FROM tables WHERE id = ?',
+            [guest.table_id]
+        );
+        return {
+            id: guest.id,
+            guest_name: guest.guest_name,
+            table_id: guest.table_id,
+            table_number: tableInfo[0]?.number || 0,
+            is_active: false,
+            session_closed: true
+        };
     }
-    
+
     // Actualizar última actividad
     await db.query(
         'UPDATE table_guests SET last_activity = NOW() WHERE session_token = ?',
         [sessionToken]
     );
-    
-    return rows[0];
+
+    return {
+        ...rows[0],
+        is_active: true
+    };
+}
+
+/**
+ * Obtener los items del pedido de un invitado específico
+ */
+async function getMyItems(guestId, sessionToken) {
+    // Validar sesión
+    const [guestRows] = await db.query(
+        `SELECT g.id, g.table_id, g.is_active
+         FROM table_guests g
+         WHERE g.id = ? AND g.session_token = ?`,
+        [guestId, sessionToken]
+    );
+
+    if (guestRows.length === 0) {
+        throw new Error('Sesión inválida');
+    }
+
+    const guest = guestRows[0];
+
+    // Si el guest no está activo, la sesión fue cerrada (pagó)
+    if (!guest.is_active) {
+        return {
+            items: [],
+            total: 0,
+            session_closed: true
+        };
+    }
+
+    // Obtener items del invitado
+    const [items] = await db.query(
+        `SELECT 
+            oi.id as order_item_id,
+            oi.quantity,
+            oi.unit_price,
+            oi.subtotal,
+            oi.notes,
+            oi.item_status,
+            m.name as menu_item_name,
+            m.description,
+            m.image_url,
+            c.name as category_name
+         FROM order_items oi
+         INNER JOIN menu_items m ON oi.menu_item_id = m.id
+         INNER JOIN categories c ON m.category_id = c.id
+         WHERE oi.guest_id = ?
+         ORDER BY oi.created_at DESC`,
+        [guestId]
+    );
+
+    // Calcular total
+    const total = items.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+
+    return {
+        items,
+        total,
+        session_closed: false
+    };
 }
 
 /**
@@ -106,7 +211,7 @@ async function getByTable(tableId) {
          ORDER BY g.joined_at ASC`,
         [tableId]
     );
-    
+
     return rows;
 }
 
@@ -118,11 +223,11 @@ async function updateActivity(sessionToken) {
         'UPDATE table_guests SET last_activity = NOW() WHERE session_token = ? AND is_active = TRUE',
         [sessionToken]
     );
-    
+
     if (result.affectedRows === 0) {
         throw new Error('Sesión no encontrada');
     }
-    
+
     return { success: true };
 }
 
@@ -134,7 +239,7 @@ async function deactivateGuest(guestId) {
         'UPDATE table_guests SET is_active = FALSE WHERE id = ?',
         [guestId]
     );
-    
+
     return { success: true };
 }
 
@@ -142,6 +247,8 @@ module.exports = {
     registerGuest,
     getSessionInfo,
     getByTable,
+    getMyItems,
     updateActivity,
     deactivateGuest
 };
+

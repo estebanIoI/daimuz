@@ -22,6 +22,7 @@ module.exports = {
   "guest.registerManual": require("../controllers/guest/registerManual"),
   "guest.getSessionInfo": require("../controllers/guest/getSessionInfo"),
   "guest.getByTable": require("../controllers/guest/getByTable"),
+  "guest.getMyItems": require("../controllers/guest/getMyItems"),
   "guest.updateActivity": require("../controllers/guest/updateActivity"),
 
   // --- Canciones (Sistema Bar) ---

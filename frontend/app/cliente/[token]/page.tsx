@@ -36,7 +36,7 @@ export default function ClientePage() {
   const params = useParams();
   const router = useRouter();
   const { apiCall } = useApi();
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [guestInfo, setGuestInfo] = useState<GuestInfo | null>(null);
@@ -58,17 +58,17 @@ export default function ClientePage() {
   const initializeSession = async () => {
     try {
       setError(null);
-      
+
       // Verificar si ya tiene sesión guardada
       const savedToken = localStorage.getItem(`guest_session_${qrToken}`);
-      
+
       if (savedToken) {
         try {
           // Validar sesión existente
           const sessionInfo = await apiCall('guest.getSessionInfo', {
             sessionToken: savedToken
           });
-          
+
           setGuestInfo({
             id: sessionInfo.id,
             guest_name: sessionInfo.guest_name,
@@ -83,7 +83,7 @@ export default function ClientePage() {
           // Sesión inválida (posiblemente cerrada por cajero), limpiar y continuar con registro
           localStorage.removeItem(`guest_session_${qrToken}`);
           console.log('🔒 Sesión expirada o cerrada, revalidando QR...');
-          
+
           try {
             // Validar QR
             await apiCall('qr.validate', { qrToken });
@@ -99,7 +99,7 @@ export default function ClientePage() {
         // Validar QR
         await apiCall('qr.validate', { qrToken });
       }
-      
+
       setIsLoading(false);
     } catch (error: any) {
       setError(error.message || 'QR inválido o expirado');
@@ -114,7 +114,7 @@ export default function ClientePage() {
         guestName: name,
         phone
       });
-      
+
       setSessionToken(result.sessionToken);
       setGuestInfo({
         id: result.guestId,
@@ -125,7 +125,7 @@ export default function ClientePage() {
         qr_token: qrToken
       });
       localStorage.setItem(`guest_session_${qrToken}`, result.sessionToken);
-      
+
       await checkSongEligibility(result.tableId);
       toast.success(`¡Bienvenido ${name}!`);
     } catch (error: any) {
@@ -152,8 +152,8 @@ export default function ClientePage() {
         if (newQty <= 0) {
           return prev.filter(i => i.id !== item.id);
         }
-        return prev.map(i => 
-          i.id === item.id 
+        return prev.map(i =>
+          i.id === item.id
             ? { ...i, quantity: newQty }
             : i
         );
@@ -172,17 +172,17 @@ export default function ClientePage() {
       removeFromCart(itemId);
       return;
     }
-    setCart(prev => prev.map(i => 
+    setCart(prev => prev.map(i =>
       i.id === itemId ? { ...i, quantity } : i
     ));
   };
 
   const handleCheckout = async () => {
     if (!guestInfo || cart.length === 0) return;
-    
+
     try {
       let currentOrderId = orderId;
-      
+
       // Crear orden si no existe
       if (!currentOrderId) {
         const order = await apiCall('order.createGuest', {
@@ -193,7 +193,7 @@ export default function ClientePage() {
         currentOrderId = order.order_id;
         setOrderId(currentOrderId);
       }
-      
+
       // Agregar items
       for (const item of cart) {
         await apiCall('order.addItemGuest', {
@@ -205,20 +205,20 @@ export default function ClientePage() {
           sessionToken: sessionToken
         });
       }
-      
+
       setCart([]);
       await checkSongEligibility(guestInfo.table_id);
       toast.success('¡Pedido enviado a cocina! 🍻');
     } catch (error: any) {
       const errorMsg = error.message || 'Error al enviar pedido';
-      
+
       // Detectar si la sesión fue cerrada por el cajero
       if (errorMsg.includes('inválida') || errorMsg.includes('expirada') || errorMsg.includes('invitado')) {
         toast.error('Tu cuenta ha sido cerrada. No puedes hacer más pedidos.', {
           duration: 5000,
           description: 'Para continuar, escanea nuevamente el código QR.'
         });
-        
+
         // Limpiar sesión y redirigir a error
         localStorage.removeItem(`guest_session_${qrToken}`);
         setGuestInfo(null);
@@ -258,7 +258,7 @@ export default function ClientePage() {
 
   return (
     <div className="min-h-screen pb-32">
-      <GuestHeader 
+      <GuestHeader
         guestName={guestInfo.guest_name}
         tableNumber={guestInfo.table_number}
         tableTotal={tableTotal}
@@ -267,27 +267,40 @@ export default function ClientePage() {
 
       {/* Estado de preparación del pedido */}
       <div className="container mx-auto px-4">
-        <PreparationStatus 
+        <PreparationStatus
           orderId={orderId}
           guestId={guestInfo.id}
           sessionToken={sessionToken}
+          onSessionClosed={() => {
+            toast.success('¡Gracias por tu visita! Tu cuenta ha sido pagada.', {
+              duration: 5000,
+              icon: '👋'
+            });
+            // Dar tiempo para leer el mensaje antes de limpiar
+            setTimeout(() => {
+              localStorage.removeItem(`guest_session_${qrToken}`);
+              setGuestInfo(null);
+              setSessionToken(null);
+              setCart([]);
+            }, 5000);
+          }}
         />
       </div>
 
       <main className="container mx-auto px-4 py-6">
-        <MenuCatalog 
+        <MenuCatalog
           onAddToCart={addToCart}
           cart={cart}
         />
         {canRequestSong && (
-          <SongSelector 
+          <SongSelector
             tableId={guestInfo.table_id}
             guestId={guestInfo.id}
             tableTotal={tableTotal}
           />
         )}
       </main>
-      <CartSummary 
+      <CartSummary
         cart={cart}
         onUpdateQuantity={updateCartQuantity}
         onRemove={removeFromCart}
