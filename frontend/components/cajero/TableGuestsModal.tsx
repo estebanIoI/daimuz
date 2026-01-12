@@ -162,21 +162,22 @@ export function TableGuestsModal({
 
     try {
       setProcessingPayment(true);
-      // Llamada al backend
-      await apiCall('cashier.registerGuestPayment', {
-        guest_id: selectedGuest.id,
-        order_id: orderId,
-        payment_method: paymentMethod,
-        amount_received: selectedGuest.total_spent
-      });
+      
+      // Re-validate guest status before processing payment
+      // This ensures the guest is still active and hasn't already paid
+      const freshData = await apiCall('cashier.getTableGuests', { table_id: tableId });
+      const currentGuest = freshData?.guests?.find((g: Guest) => g.id === selectedGuest.id && g.is_active);
+      
+      if (!currentGuest) {
+        alert('Este cliente ya realizó su pago o fue eliminado. La lista se actualizará.');
+        setTableData(freshData);
+        setSelectedGuest(null);
+        setGuestItems([]);
+        setShowPaymentOptions(false);
+        return;
+      }
 
-      // Recargar datos
-      await loadTableData();
-      setSelectedGuest(null);
-      setGuestItems([]);
-      setShowPaymentOptions(false);
-      // Pasar los datos del pago individual al callback
-      // Convertir GuestItem[] a InvoiceItem[]
+      // Guardar items antes de la llamada al backend (para el callback posterior)
       const invoiceItems = guestItems.map(item => ({
         order_item_id: item.order_item_id,
         quantity: item.quantity,
@@ -188,6 +189,19 @@ export function TableGuestsModal({
         description: item.menu_item.description,
         category_name: item.menu_item.category_name,
       }));
+
+      // Llamada al backend
+      await apiCall('cashier.registerGuestPayment', {
+        guest_id: selectedGuest.id,
+        order_id: orderId,
+        payment_method: paymentMethod,
+        amount_received: selectedGuest.total_spent
+      });
+
+      // Recargar datos
+      await loadTableData();
+      
+      // Pasar los datos del pago individual al callback
       onPaymentComplete({
         orderId: orderId,
         guestId: selectedGuest.id,
@@ -195,9 +209,25 @@ export function TableGuestsModal({
         paymentMethod: paymentMethod,
         items: invoiceItems,
       });
+
+      setSelectedGuest(null);
+      setGuestItems([]);
+      setShowPaymentOptions(false);
     } catch (error: any) {
       console.error('Error procesando pago:', error);
-      alert(error.message || 'Error al procesar el pago');
+      
+      // Handle specific guest-not-found error
+      const errorMessage = error.message || 'Error al procesar el pago';
+      if (errorMessage.includes('Invitado no encontrado') || 
+          errorMessage.includes('ya inactivo')) {
+        alert('Este cliente ya realizó su pago o no está disponible. La lista se actualizará.');
+        await loadTableData();
+        setSelectedGuest(null);
+        setGuestItems([]);
+        setShowPaymentOptions(false);
+      } else {
+        alert(errorMessage);
+      }
     } finally {
       setProcessingPayment(false);
     }
