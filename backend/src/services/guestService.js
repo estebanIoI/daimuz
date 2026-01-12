@@ -79,26 +79,38 @@ async function getSessionInfo(sessionToken) {
 
     const guest = guestRows[0];
 
-    // Si el guest no está activo, retornar con is_active = false
+    // Si el guest no está activo, retornar con is_active = false y buscar su última factura
     if (!guest.is_active) {
         const [tableInfo] = await db.query(
             'SELECT number FROM tables WHERE id = ?',
             [guest.table_id]
         );
+
+        // Buscar última factura de este invitado
+        const [invoiceRows] = await db.query(
+            `SELECT invoice_number, total, items, created_at 
+             FROM invoices 
+             WHERE notes LIKE ? 
+             ORDER BY created_at DESC LIMIT 1`,
+            [`%Pago individual de: ${guest.guest_name}%`]
+        );
+
         return {
             id: guest.id,
             guest_name: guest.guest_name,
             table_id: guest.table_id,
             table_number: tableInfo[0]?.number || 0,
             is_active: false,
-            session_closed: true
+            session_closed: true,
+            invoice: invoiceRows[0] || null
         };
     }
 
     // Si está activo, obtener toda la información
     const [rows] = await db.query(
         `SELECT g.*, t.number as table_number, t.capacity,
-                qc.qr_url, qc.qr_token
+                qc.qr_url, qc.qr_token,
+                (SELECT id FROM orders WHERE table_id = g.table_id AND status = 'activo' LIMIT 1) as active_order_id
          FROM table_guests g
          INNER JOIN tables t ON g.table_id = t.id
          INNER JOIN table_qr_codes qc ON g.qr_code_id = qc.id
@@ -172,7 +184,7 @@ async function getMyItems(guestId, sessionToken) {
             oi.unit_price,
             oi.subtotal,
             oi.notes,
-            oi.item_status,
+            oi.status as item_status,
             m.name as menu_item_name,
             m.description,
             m.image_url,

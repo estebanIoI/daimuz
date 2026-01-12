@@ -78,6 +78,9 @@ export default function ClientePage() {
             qr_token: sessionInfo.qr_token
           });
           setSessionToken(savedToken);
+          if (sessionInfo.active_order_id) {
+            setOrderId(sessionInfo.active_order_id);
+          }
           await checkSongEligibility(sessionInfo.table_id);
         } catch (e: any) {
           // Sesión inválida (posiblemente cerrada por cajero), limpiar y continuar con registro

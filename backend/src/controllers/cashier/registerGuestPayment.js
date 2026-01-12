@@ -37,10 +37,12 @@ module.exports = async function registerGuestPayment(payload, req) {
 
     const guest = guestRows[0];
 
-    // Obtener los items del invitado en esta orden
+    // Obtener los items del invitado en esta orden con detalles para la factura
     const [guestItems] = await connection.query(
-      `SELECT id, subtotal FROM order_items 
-       WHERE guest_id = ? AND order_id = ?`,
+      `SELECT oi.*, mi.name as menu_item_name 
+       FROM order_items oi
+       JOIN menu_items mi ON oi.menu_item_id = mi.id
+       WHERE oi.guest_id = ? AND oi.order_id = ?`,
       [guest_id, order_id]
     );
 
@@ -57,45 +59,81 @@ module.exports = async function registerGuestPayment(payload, req) {
       throw new Error(`Monto insuficiente. Total: $${Math.round(guestTotal).toLocaleString('es-CO')}, Recibido: $${Math.round(received).toLocaleString('es-CO')}`);
     }
 
-    // Generar transaction_id único que incluye los IDs de items pagados
-    const itemIds = guestItems.map(i => i.id).join(',');
+    // Generar transaction_id único
     const transaction_id = `TXN-G${guest_id}-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
-    // Registrar pago parcial (guardamos info del guest en transaction_id)
+    // --- GENERAR FACTURA ESPECÍFICA PARA EL CLIENTE ---
+    const invoiceNumber = `INV-G${guest_id}-${Date.now()}`;
+    const [cashierResult] = await connection.query('SELECT name FROM users WHERE id = ?', [req.user.id]);
+    const cashierName = cashierResult[0]?.name || 'Cajero';
+
+    await connection.query(`
+      INSERT INTO invoices (
+        order_id,
+        invoice_number,
+        table_number,
+        waiter_id,
+        waiter_name,
+        cashier_id,
+        cashier_name,
+        subtotal,
+        total,
+        payment_method,
+        transaction_id,
+        items,
+        notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      order_id,
+      invoiceNumber,
+      guest.table_number,
+      null, // No asociamos mesero específico a la factura individual necesariamente
+      'Sistema Bar',
+      req.user.id,
+      cashierName,
+      guestTotal,
+      guestTotal,
+      payment_method,
+      transaction_id,
+      JSON.stringify(guestItems.map(item => ({
+        order_item_id: item.id,
+        menu_item_name: item.menu_item_name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal
+      }))),
+      `Pago individual de: ${guest.guest_name}`
+    ]);
+    console.log(`🧾 Factura individual generada: ${invoiceNumber} para ${guest.guest_name}`);
+
+    // Registrar pago
     await connection.query(`
       INSERT INTO payments (order_id, cashier_id, method, amount, transaction_id, status)
       VALUES (?, ?, ?, ?, ?, 'completado')
     `, [
-      order_id, 
-      req.user.id, 
-      payment_method, 
-      guestTotal, 
-      `${transaction_id}|ITEMS:${itemIds}|GUEST:${guest.guest_name}`
+      order_id,
+      req.user.id,
+      payment_method,
+      guestTotal,
+      `${transaction_id}|FACTURA:${invoiceNumber}|GUEST:${guest.guest_name}`,
+      'completado'
     ]);
     console.log(`💳 Pago individual registrado - ${guest.guest_name}: $${Math.round(guestTotal).toLocaleString('es-CO')}`);
 
-    // Guardar los item_ids que fueron pagados para referencia
+    // Eliminar los items pagados del pedido
     const paidItemIds = guestItems.map(i => i.id);
-    
-    // Eliminar los items pagados del pedido (ya están registrados en el payment)
-    // Esto evita que se cobren doble y mantiene consistencia con los triggers de totales
     await connection.query(
       `DELETE FROM order_items WHERE id IN (?) AND order_id = ?`,
       [paidItemIds, order_id]
     );
-    console.log(`📦 ${paidItemIds.length} items del cliente ${guest.guest_name} procesados y removidos del pedido`);
+    console.log(`📦 ${paidItemIds.length} items removidos del pedido tras pago individual`);
 
-    // Desactivar al invitado e invalidar su sesión (ya no podrá hacer más pedidos)
-    // Usamos un token invalidado en lugar de NULL porque la columna tiene restricción NOT NULL
-    const invalidatedToken = `PAID-${guest_id}-${Date.now()}`;
+    // Desactivar al invitado (esto deshabilita su acceso para hacer nuevos pedidos)
     await connection.query(
-      `UPDATE table_guests SET is_active = FALSE, session_token = ? WHERE id = ?`,
-      [invalidatedToken, guest_id]
+      `UPDATE table_guests SET is_active = FALSE WHERE id = ?`,
+      [guest_id]
     );
-    console.log(`🔐 Sesión invalidada para cliente ${guest.guest_name} (ID: ${guest_id})`);
-
-    // Al eliminar los items, los triggers de MySQL recalculan automáticamente
-    // el total de la orden (subtotal, tax_amount, total)
+    console.log(`🔐 Sesión marcada como pagada para ${guest.guest_name}`);
 
     // Verificar si quedan guests activos (que aún no han pagado)
     const [activeGuests] = await connection.query(
@@ -117,21 +155,21 @@ module.exports = async function registerGuestPayment(payload, req) {
         `UPDATE orders SET status = 'cerrado', closed_at = NOW() WHERE id = ?`,
         [order_id]
       );
-      
+
       // Liberar mesa y desactivar todos los QR codes
       await connection.query(
         `UPDATE tables SET status = 'libre', current_waiter_id = NULL WHERE id = ?`,
         [guest.table_id]
       );
-      
+
       // Invalidar todos los QR codes de la mesa
       await connection.query(
         `UPDATE table_qr_codes SET is_active = FALSE, expires_at = NOW() WHERE table_id = ?`,
         [guest.table_id]
       );
-      
+
       console.log(`🔐 QR codes invalidados y mesa ${guest.table_number} liberada`);
-      
+
       orderClosed = true;
     }
 
@@ -151,7 +189,8 @@ module.exports = async function registerGuestPayment(payload, req) {
         amount: guestTotal,
         payment_method,
         transaction_id,
-        change: received - guestTotal
+        change: received - guestTotal,
+        invoice_number: invoiceNumber
       },
       orderClosed,
       remainingGuests: parseInt(activeGuests[0].count)

@@ -27,6 +27,7 @@ export default function PreparationStatus({ orderId, guestId, sessionToken, onSe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionClosed, setSessionClosed] = useState(false);
+  const [invoice, setInvoice] = useState<any>(null);
   const [totalAmount, setTotalAmount] = useState(0);
 
   const fetchStatus = useCallback(async () => {
@@ -43,6 +44,9 @@ export default function PreparationStatus({ orderId, guestId, sessionToken, onSe
 
       if (!sessionInfo || !sessionInfo.is_active) {
         setSessionClosed(true);
+        if (sessionInfo.invoice) {
+          setInvoice(sessionInfo.invoice);
+        }
         setItems([]);
         if (onSessionClosed) onSessionClosed();
         return;
@@ -85,14 +89,62 @@ export default function PreparationStatus({ orderId, guestId, sessionToken, onSe
   // Si la sesión fue cerrada (cliente ya pagó)
   if (sessionClosed) {
     return (
-      <div className="bg-green-100 border border-green-300 rounded-lg p-4 my-4">
-        <div className="flex items-center gap-3">
-          <CheckCircle2 className="h-8 w-8 text-green-600" />
-          <div>
-            <h3 className="font-bold text-green-800">¡Gracias por tu visita!</h3>
-            <p className="text-green-700 text-sm">Tu cuenta ha sido pagada. Esperamos verte pronto.</p>
+      <div className="space-y-4 my-4 animate-in fade-in zoom-in duration-500">
+        <div className="bg-green-100 border border-green-300 rounded-xl p-4 shadow-md">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <div>
+              <h3 className="font-bold text-green-800 text-lg">¡Cuenta Pagada!</h3>
+              <p className="text-green-700">Gracias por tu visita. Esperamos verte pronto.</p>
+            </div>
           </div>
         </div>
+
+        {invoice && (
+          <div className="bg-white rounded-xl p-5 shadow-xl border-t-4 border-purple-600 space-y-4">
+            <div className="flex justify-between items-start border-b pb-3">
+              <div>
+                <h4 className="font-bold text-gray-900">Resumen de Pago</h4>
+                <p className="text-xs text-gray-500">Factura: {invoice.invoice_number}</p>
+                <p className="text-xs text-gray-500">
+                  {new Date(invoice.created_at).toLocaleString('es-CO')}
+                </p>
+              </div>
+              <Badge className="bg-purple-100 text-purple-700">Digital</Badge>
+            </div>
+
+            <div className="space-y-2">
+              {(() => {
+                try {
+                  const items = typeof invoice.items === 'string' ? JSON.parse(invoice.items) : invoice.items;
+                  return items.map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className="text-gray-600">
+                        {item.menu_item_name} <span className="text-xs text-gray-400">x{item.quantity}</span>
+                      </span>
+                      <span className="font-medium text-gray-900">
+                        ${Math.round(item.subtotal).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  ));
+                } catch (e) {
+                  return <p className="text-xs text-red-400">No se pudo cargar el detalle.</p>;
+                }
+              })()}
+            </div>
+
+            <div className="border-t pt-3 flex justify-between items-center">
+              <span className="font-bold text-gray-900">TOTAL PAGADO</span>
+              <span className="text-xl font-black text-purple-700">
+                ${Math.round(invoice.total).toLocaleString('es-CO')}
+              </span>
+            </div>
+
+            <p className="text-[10px] text-gray-400 text-center uppercase tracking-wider">
+              Comprobante de pago electrónico - Sistema Bar
+            </p>
+          </div>
+        )}
       </div>
     );
   }
