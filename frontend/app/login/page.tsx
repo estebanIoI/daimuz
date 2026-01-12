@@ -339,7 +339,7 @@ export default function LoginForm() {
                   <button className="text-orange-200 hover:text-orange-100 font-medium">Contacta soporte</button>
                 </p>
                 <div className="pt-2 sm:pt-3 border-t border-white/30 mt-2">
-                  <p className="text-xs text-white/90">© 2024 ZET X - Todos los derechos reservados</p>
+                  <p className="text-xs text-white/90">© 2024 DAIMUZ - Todos los derechos reservados</p>
                 </div>
               </div>
             </div>

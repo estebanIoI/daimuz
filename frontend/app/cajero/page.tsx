@@ -787,8 +787,38 @@ export default function CajeroPanel() {
   }
 
   // Callback cuando se completa un pago individual
-  const handleGuestPaymentComplete = () => {
-    fetchCajeroData()
+  const handleGuestPaymentComplete = async (guestPaymentData: {
+    orderId: number;
+    guestId?: number;
+    amount: number;
+    paymentMethod: 'efectivo' | 'tarjeta' | 'nequi' | 'transferencia';
+    items: InvoiceItem[];
+  }) => {
+    try {
+      const currentDateTime = new Date().toISOString();
+      // Enviar pago individual al backend (debe generar factura individual)
+      const payload = {
+        order_id: guestPaymentData.orderId,
+        guest_id: guestPaymentData.guestId,
+        payment_method: guestPaymentData.paymentMethod,
+        amount_received: guestPaymentData.amount,
+        closed_at: currentDateTime,
+        items: guestPaymentData.items,
+      };
+      const paymentResponse = await apiCall("cashier.registerGuestPayment", payload);
+      // Si el backend retorna la factura generada
+      if (paymentResponse && paymentResponse.invoice) {
+        setGeneratedInvoice(paymentResponse.invoice);
+        setShowInvoice(true);
+        setDailyInvoices(prev => [paymentResponse.invoice, ...prev]);
+      }
+      // Actualizar datos generales
+      fetchCajeroData();
+    } catch (error) {
+      console.error("❌ Error procesando pago individual:", error);
+      const errMsg = (error as any)?.message || "No se pudo registrar el pago individual.";
+      alert(errMsg);
+    }
   }
 
   const processPayment = useCallback(async () => {

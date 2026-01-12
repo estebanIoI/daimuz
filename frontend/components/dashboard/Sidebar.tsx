@@ -32,7 +32,7 @@ export function Sidebar({ activeSection, onSectionChange, isCollapsed, toggleSid
               <Image src="/images/logo zet.png" alt="Zet Logo" fill className="object-contain" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-gray-800 text-sm sm:text-base">Zet X</h2>
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">DAIMUZ</h2>
               <p className="text-xs sm:text-sm text-gray-500 truncate">Sistema de Gestión</p>
             </div>
           </div>

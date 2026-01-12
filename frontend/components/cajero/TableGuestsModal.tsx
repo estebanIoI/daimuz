@@ -1,3 +1,15 @@
+// Definir interfaz para factura (InvoiceItem) para tipado correcto
+interface InvoiceItem {
+  order_item_id: number;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  notes?: string;
+  menu_item_id: number;
+  menu_item_name: string;
+  description?: string;
+  category_name: string;
+}
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -87,7 +99,13 @@ interface TableGuestsModalProps {
   tableId: number;
   tableNumber: number;
   orderId: number;
-  onPaymentComplete: () => void;
+  onPaymentComplete: (guestPaymentData: {
+    orderId: number;
+    guestId?: number;
+    amount: number;
+    paymentMethod: 'efectivo' | 'tarjeta' | 'nequi' | 'transferencia';
+    items: InvoiceItem[];
+  }) => void;
 }
 
 export function TableGuestsModal({
@@ -144,6 +162,7 @@ export function TableGuestsModal({
 
     try {
       setProcessingPayment(true);
+      // Llamada al backend
       await apiCall('cashier.registerGuestPayment', {
         guest_id: selectedGuest.id,
         order_id: orderId,
@@ -156,7 +175,26 @@ export function TableGuestsModal({
       setSelectedGuest(null);
       setGuestItems([]);
       setShowPaymentOptions(false);
-      onPaymentComplete();
+      // Pasar los datos del pago individual al callback
+      // Convertir GuestItem[] a InvoiceItem[]
+      const invoiceItems = guestItems.map(item => ({
+        order_item_id: item.order_item_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal,
+        notes: item.notes,
+        menu_item_id: item.menu_item.id,
+        menu_item_name: item.menu_item.name,
+        description: item.menu_item.description,
+        category_name: item.menu_item.category_name,
+      }));
+      onPaymentComplete({
+        orderId: orderId,
+        guestId: selectedGuest.id,
+        amount: selectedGuest.total_spent,
+        paymentMethod: paymentMethod,
+        items: invoiceItems,
+      });
     } catch (error: any) {
       console.error('Error procesando pago:', error);
       alert(error.message || 'Error al procesar el pago');

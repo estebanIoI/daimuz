@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "- Iniciar Sesión",
-  description: "Sistema de gestión para restaurante",
+  description: "Sistema de gestión",
     generator: 'v0.dev'
 }
 
