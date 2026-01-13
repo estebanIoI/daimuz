@@ -18,8 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Users, User, CreditCard, ShoppingBag, Clock, ChevronRight, 
+import {
+  Users, User, CreditCard, ShoppingBag, Clock, ChevronRight,
   Banknote, Smartphone, ArrowLeft, Check, Loader2, Package
 } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
@@ -105,6 +105,7 @@ interface TableGuestsModalProps {
     amount: number;
     paymentMethod: 'efectivo' | 'tarjeta' | 'nequi' | 'transferencia';
     items: InvoiceItem[];
+    invoice?: any;
   }) => void;
 }
 
@@ -144,9 +145,9 @@ export function TableGuestsModal({
     try {
       setLoadingItems(true);
       setSelectedGuest(guest);
-      const data = await apiCall('cashier.getGuestItems', { 
-        guest_id: guest.id, 
-        order_id: orderId 
+      const data = await apiCall('cashier.getGuestItems', {
+        guest_id: guest.id,
+        order_id: orderId
       });
       setGuestItems(data.items || []);
     } catch (error) {
@@ -162,12 +163,12 @@ export function TableGuestsModal({
 
     try {
       setProcessingPayment(true);
-      
+
       // Re-validate guest status before processing payment
       // This ensures the guest is still active and hasn't already paid
       const freshData = await apiCall('cashier.getTableGuests', { table_id: tableId });
       const currentGuest = freshData?.guests?.find((g: Guest) => g.id === selectedGuest.id && g.is_active);
-      
+
       if (!currentGuest) {
         alert('Este cliente ya realizó su pago o fue eliminado. La lista se actualizará.');
         setTableData(freshData);
@@ -191,7 +192,7 @@ export function TableGuestsModal({
       }));
 
       // Llamada al backend
-      await apiCall('cashier.registerGuestPayment', {
+      const response = await apiCall('cashier.registerGuestPayment', {
         guest_id: selectedGuest.id,
         order_id: orderId,
         payment_method: paymentMethod,
@@ -200,7 +201,7 @@ export function TableGuestsModal({
 
       // Recargar datos
       await loadTableData();
-      
+
       // Pasar los datos del pago individual al callback
       onPaymentComplete({
         orderId: orderId,
@@ -208,6 +209,7 @@ export function TableGuestsModal({
         amount: selectedGuest.total_spent,
         paymentMethod: paymentMethod,
         items: invoiceItems,
+        invoice: response.invoice,
       });
 
       setSelectedGuest(null);
@@ -215,11 +217,11 @@ export function TableGuestsModal({
       setShowPaymentOptions(false);
     } catch (error: any) {
       console.error('Error procesando pago:', error);
-      
+
       // Handle specific guest-not-found error
       const errorMessage = error.message || 'Error al procesar el pago';
-      if (errorMessage.includes('Invitado no encontrado') || 
-          errorMessage.includes('ya inactivo')) {
+      if (errorMessage.includes('Invitado no encontrado') ||
+        errorMessage.includes('ya inactivo')) {
         alert('Este cliente ya realizó su pago o no está disponible. La lista se actualizará.');
         await loadTableData();
         setSelectedGuest(null);
@@ -266,10 +268,10 @@ export function TableGuestsModal({
             )}
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600" />
-              {showPaymentOptions 
+              {showPaymentOptions
                 ? `Cobrar a ${selectedGuest?.name}`
-                : selectedGuest 
-                  ? `Consumo de ${selectedGuest.name}` 
+                : selectedGuest
+                  ? `Consumo de ${selectedGuest.name}`
                   : `Mesa ${tableNumber} - Clientes Activos`
               }
             </DialogTitle>
@@ -314,11 +316,10 @@ export function TableGuestsModal({
                   <Button
                     variant={paymentMethod === 'efectivo' ? 'default' : 'outline'}
                     onClick={() => setPaymentMethod('efectivo')}
-                    className={`flex flex-col items-center gap-2 h-auto py-4 ${
-                      paymentMethod === 'efectivo' 
-                        ? 'bg-green-500 hover:bg-green-600' 
-                        : 'hover:bg-green-50 hover:border-green-300'
-                    }`}
+                    className={`flex flex-col items-center gap-2 h-auto py-4 ${paymentMethod === 'efectivo'
+                      ? 'bg-green-500 hover:bg-green-600'
+                      : 'hover:bg-green-50 hover:border-green-300'
+                      }`}
                   >
                     <Banknote className="w-6 h-6" />
                     <span>Efectivo</span>
@@ -328,11 +329,10 @@ export function TableGuestsModal({
                   <Button
                     variant={paymentMethod === 'tarjeta' ? 'default' : 'outline'}
                     onClick={() => setPaymentMethod('tarjeta')}
-                    className={`flex flex-col items-center gap-2 h-auto py-4 ${
-                      paymentMethod === 'tarjeta' 
-                        ? 'bg-blue-500 hover:bg-blue-600' 
-                        : 'hover:bg-blue-50 hover:border-blue-300'
-                    }`}
+                    className={`flex flex-col items-center gap-2 h-auto py-4 ${paymentMethod === 'tarjeta'
+                      ? 'bg-blue-500 hover:bg-blue-600'
+                      : 'hover:bg-blue-50 hover:border-blue-300'
+                      }`}
                   >
                     <CreditCard className="w-6 h-6" />
                     <span>Tarjeta</span>
@@ -342,11 +342,10 @@ export function TableGuestsModal({
                   <Button
                     variant={paymentMethod === 'nequi' ? 'default' : 'outline'}
                     onClick={() => setPaymentMethod('nequi')}
-                    className={`flex flex-col items-center gap-2 h-auto py-4 ${
-                      paymentMethod === 'nequi' 
-                        ? 'bg-purple-500 hover:bg-purple-600' 
-                        : 'hover:bg-purple-50 hover:border-purple-300'
-                    }`}
+                    className={`flex flex-col items-center gap-2 h-auto py-4 ${paymentMethod === 'nequi'
+                      ? 'bg-purple-500 hover:bg-purple-600'
+                      : 'hover:bg-purple-50 hover:border-purple-300'
+                      }`}
                   >
                     <Smartphone className="w-6 h-6" />
                     <span>Nequi</span>
@@ -489,8 +488,8 @@ export function TableGuestsModal({
                     Clientes ({tableData.guests.length})
                   </h4>
                   {tableData.guests.map((guest) => (
-                    <Card 
-                      key={guest.id} 
+                    <Card
+                      key={guest.id}
                       className="border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all"
                       onClick={() => loadGuestItems(guest)}
                     >

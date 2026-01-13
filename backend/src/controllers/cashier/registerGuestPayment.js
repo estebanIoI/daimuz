@@ -128,12 +128,14 @@ module.exports = async function registerGuestPayment(payload, req) {
     );
     console.log(`📦 ${paidItemIds.length} items removidos del pedido tras pago individual`);
 
-    // Desactivar al invitado (esto deshabilita su acceso para hacer nuevos pedidos)
+    // Desactivar al invitado e invalidar su token de sesión
+    // Esto asegura que la sesión del teléfono quede completamente deshabilitada
+    const invalidatedToken = `PAID-${guest_id}-${Date.now()}`;
     await connection.query(
-      `UPDATE table_guests SET is_active = FALSE WHERE id = ?`,
-      [guest_id]
+      `UPDATE table_guests SET is_active = FALSE, session_token = ? WHERE id = ?`,
+      [invalidatedToken, guest_id]
     );
-    console.log(`🔐 Sesión marcada como pagada para ${guest.guest_name}`);
+    console.log(`🔐 Sesión invalidada definitivamente para ${guest.guest_name}`);
 
     // Verificar si quedan guests activos (que aún no han pagado)
     const [activeGuests] = await connection.query(
@@ -173,6 +175,12 @@ module.exports = async function registerGuestPayment(payload, req) {
       orderClosed = true;
     }
 
+    // Obtener la factura completa para retornar al frontend
+    const [fullInvoiceRows] = await connection.query(`
+      SELECT * FROM invoices WHERE invoice_number = ?
+    `, [invoiceNumber]);
+    const fullInvoice = fullInvoiceRows[0];
+
     await connection.commit();
 
     // Invalidar cache
@@ -192,6 +200,7 @@ module.exports = async function registerGuestPayment(payload, req) {
         change: received - guestTotal,
         invoice_number: invoiceNumber
       },
+      invoice: fullInvoice,
       orderClosed,
       remainingGuests: parseInt(activeGuests[0].count)
     };

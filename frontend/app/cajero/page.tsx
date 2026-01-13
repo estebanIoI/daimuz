@@ -793,17 +793,31 @@ export default function CajeroPanel() {
     amount: number;
     paymentMethod: 'efectivo' | 'tarjeta' | 'nequi' | 'transferencia';
     items: InvoiceItem[];
+    invoice?: any;
   }) => {
     try {
       // El pago ya fue procesado por TableGuestsModal
-      // Solo actualizamos los datos del cajero
       console.log("✅ Pago de invitado completado:", guestPaymentData);
+
+      // Si el backend retornó una factura, mostrarla para imprimir
+      if (guestPaymentData.invoice) {
+        // Asegurarse de que los items estén en formato objeto si vienen como string
+        const invoice = { ...guestPaymentData.invoice };
+        if (typeof invoice.items === 'string') {
+          try { invoice.items = JSON.parse(invoice.items); } catch (e) { }
+        }
+
+        setGeneratedInvoice(invoice as Invoice);
+        setShowInvoice(true);
+
+        // Cerrar el modal de invitados para ver la factura
+        setIsTableGuestsModalOpen(false);
+      }
 
       // Actualizar datos generales
       await fetchCajeroData();
     } catch (error) {
       console.error("❌ Error actualizando datos tras pago individual:", error);
-      // No mostramos alerta ya que el modal maneja los errores
     }
   }
 
@@ -1447,10 +1461,10 @@ export default function CajeroPanel() {
                               <Badge
                                 variant="outline"
                                 className={`text-xs ${payment.method === "efectivo"
-                                    ? "border-green-500 text-green-700"
-                                    : payment.method === "tarjeta"
-                                      ? "border-blue-500 text-blue-700"
-                                      : "border-purple-500 text-purple-700"
+                                  ? "border-green-500 text-green-700"
+                                  : payment.method === "tarjeta"
+                                    ? "border-blue-500 text-blue-700"
+                                    : "border-purple-500 text-purple-700"
                                   }`}
                               >
                                 {payment.method === "efectivo" && "💵"}
