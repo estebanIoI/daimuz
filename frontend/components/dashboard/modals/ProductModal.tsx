@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useTheme } from "@/contexts/ThemeContext"
+import { getProductImageUrl } from "@/lib/utils"
 import type { MenuItem, Category, ProductForm } from "@/types"
 
 interface ProductModalProps {
@@ -40,13 +41,6 @@ export function ProductModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
-  // Construir URL completa para la imagen
-  const getImageUrl = (url: string | null | undefined) => {
-    if (!url) return null
-    if (url.startsWith('http')) return url
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001'
-    return `${baseUrl}${url}`
-  }
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -76,7 +70,8 @@ export function ProductModal({
       const uploadedUrl = await onImageUpload(file)
       if (uploadedUrl) {
         setProductForm({ ...productForm, image_url: uploadedUrl })
-        setPreviewUrl(null) // Limpiar preview local
+        // Mantenemos el previewURL para evitar el pestañeo "blanco" mientras carga la remota
+        // se limpiará al cerrar el modal o cambiar de imagen
       } else {
         setUploadError('Error al subir la imagen')
         setPreviewUrl(null)
@@ -104,7 +99,7 @@ export function ProductModal({
   }
 
   // Determinar qué imagen mostrar
-  const displayImage = previewUrl || getImageUrl(productForm.image_url)
+  const displayImage = previewUrl || getProductImageUrl(productForm.image_url)
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -161,11 +156,11 @@ export function ProductModal({
               rows={3}
             />
           </div>
-          
+
           {/* Sección de imagen mejorada */}
           <div className="space-y-2">
             <Label>Imagen del Producto</Label>
-            
+
             {/* Input oculto para seleccionar archivo */}
             <input
               ref={fileInputRef}

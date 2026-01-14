@@ -4,15 +4,9 @@ import { Timer, CheckCircle, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { getProductImageUrl } from "@/lib/utils"
 import type { KitchenOrder } from "@/types"
 
-// Helper para construir URL de imagen
-const getImageUrl = (url: string | null | undefined) => {
-  if (!url) return null
-  if (url.startsWith('http')) return url
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001'
-  return `${baseUrl}${url}`
-}
 
 interface OrderCardProps {
   order: KitchenOrder
@@ -61,7 +55,7 @@ export function OrderCard({ order, onUpdateStatus }: OrderCardProps) {
 
   return (
     <Card className={`border-l-4 ${getBorderColor(order.status)} transition-all duration-300 hover:shadow-lg`}>
-            <CardHeader className="pb-3">
+      <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold">Mesa {order.tableNumber}</span>
@@ -112,7 +106,7 @@ export function OrderCard({ order, onUpdateStatus }: OrderCardProps) {
                 {item.image_url && (
                   <div className="flex-shrink-0 w-10 h-10 rounded overflow-hidden bg-gray-100">
                     <img
-                      src={getImageUrl(item.image_url) || '/placeholder.jpg'}
+                      src={getProductImageUrl(item.image_url) || '/placeholder.jpg'}
                       alt={item.name}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -146,7 +140,7 @@ export function OrderCard({ order, onUpdateStatus }: OrderCardProps) {
           {(() => {
             const hasNewItems = order.items.some(item => item.isNew)
             const hasReadyItems = order.items.some(item => item.status === "servido")
-            
+
             if (order.status === "pendiente") {
               return (
                 <Button
@@ -159,7 +153,7 @@ export function OrderCard({ order, onUpdateStatus }: OrderCardProps) {
                 </Button>
               )
             }
-            
+
             if (order.status === "preparacion") {
               return (
                 <Button
@@ -172,7 +166,7 @@ export function OrderCard({ order, onUpdateStatus }: OrderCardProps) {
                 </Button>
               )
             }
-            
+
             if (order.status === "listo") {
               if (hasNewItems) {
                 return (
@@ -198,7 +192,7 @@ export function OrderCard({ order, onUpdateStatus }: OrderCardProps) {
                 )
               }
             }
-            
+
             return null
           })()}
         </div>

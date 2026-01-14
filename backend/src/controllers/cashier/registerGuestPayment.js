@@ -150,6 +150,15 @@ module.exports = async function registerGuestPayment(payload, req) {
       [order_id]
     );
 
+    // --- INVALIDAR EL QR DE LA MESA ---
+    // Apenas alguien paga su consumo individual, invalidamos el QR para que nadie más se una a esta sesión
+    // o para que el cliente que pagó no pueda volver a entrar con el mismo QR.
+    await connection.query(
+      `UPDATE table_qr_codes SET is_active = FALSE, expires_at = NOW() WHERE table_id = ?`,
+      [guest.table_id]
+    );
+    console.log(`🔐 QR codes invalidados para mesa ${guest.table_number} tras pago individual`);
+
     // Solo cerrar la orden si no quedan guests activos Y no quedan items pendientes
     let orderClosed = false;
     if (activeGuests[0].count === 0 && remainingItems[0].count === 0) {
@@ -158,19 +167,13 @@ module.exports = async function registerGuestPayment(payload, req) {
         [order_id]
       );
 
-      // Liberar mesa y desactivar todos los QR codes
+      // Liberar mesa 
       await connection.query(
         `UPDATE tables SET status = 'libre', current_waiter_id = NULL WHERE id = ?`,
         [guest.table_id]
       );
 
-      // Invalidar todos los QR codes de la mesa
-      await connection.query(
-        `UPDATE table_qr_codes SET is_active = FALSE, expires_at = NOW() WHERE table_id = ?`,
-        [guest.table_id]
-      );
-
-      console.log(`🔐 QR codes invalidados y mesa ${guest.table_number} liberada`);
+      console.log(`🔐 Mesa ${guest.table_number} liberada (era el último cliente)`);
 
       orderClosed = true;
     }

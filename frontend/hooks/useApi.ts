@@ -2,7 +2,22 @@
 
 import { useState, useCallback } from "react"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+const getApiBaseUrl = () => {
+  // En el cliente, si no estamos en localhost, podemos intentar usar la URL actual
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isProdDomain = hostname === 'daimuz.me' ||
+      hostname === 'www.daimuz.me' ||
+      hostname.endsWith('ondigitalocean.app');
+
+    if (isProdDomain && !process.env.NEXT_PUBLIC_API_URL) {
+      return `${window.location.origin}/api`;
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export function useApi() {
   const [loading, setLoading] = useState(false)
@@ -80,12 +95,12 @@ export function useApi() {
       if (response.status === 429) {
         const textResponse = await response.text()
         console.warn("⚠️ Rate limit alcanzado:", textResponse)
-        
+
         if (retries > 0) {
           // Backoff exponencial: esperar más tiempo en cada intento
           const delay = Math.pow(2, 4 - retries) * 1000 // 2s, 4s, 8s
-          console.log(`🔄 Reintentando en ${delay/1000}s... (${retries} intentos restantes)`)
-          
+          console.log(`🔄 Reintentando en ${delay / 1000}s... (${retries} intentos restantes)`)
+
           await new Promise(resolve => setTimeout(resolve, delay))
           return apiCall(service, payload, retries - 1, isDeadlockRetry)
         } else {
@@ -110,25 +125,25 @@ export function useApi() {
       return result.data
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error desconocido"
-      
+
       // Manejo especial para deadlocks - retry automático
       if (errorMessage.includes("Deadlock found") && !isDeadlockRetry && retries > 0) {
         console.warn(`🔄 Deadlock detectado, reintentando ${4 - retries}/3...`)
-        
+
         // Esperar un tiempo aleatorio antes de reintentar (50-200ms)
         const delay = Math.random() * 150 + 50
         await new Promise(resolve => setTimeout(resolve, delay))
-        
+
         // Reintentar la llamada con flag de deadlock
         return apiCall(service, payload, retries - 1, true)
       }
-      
+
       // No mostrar error en consola si es rate limiting y se está reintentando
       if (errorMessage !== "RATE_LIMIT_EXCEEDED") {
         setError(errorMessage)
         console.error("❌ API Error:", errorMessage)
       }
-      
+
       throw err
     } finally {
       setLoading(false)

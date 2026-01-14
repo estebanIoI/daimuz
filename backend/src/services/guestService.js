@@ -115,9 +115,7 @@ async function getSessionInfo(sessionToken) {
          INNER JOIN tables t ON g.table_id = t.id
          INNER JOIN table_qr_codes qc ON g.qr_code_id = qc.id
          WHERE g.session_token = ? 
-         AND g.is_active = TRUE
-         AND qc.is_active = TRUE
-         AND qc.expires_at > NOW()`,
+         AND g.is_active = TRUE`,
         [sessionToken]
     );
 

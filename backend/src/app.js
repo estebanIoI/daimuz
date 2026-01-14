@@ -13,8 +13,26 @@ const uploadRouter = require('./routes/upload');
 const app = express();
 
 // CORS configurado para producción
+const allowedOrigins = [
+  'https://daimuz.me',
+  'https://www.daimuz.me',
+  'https://sea-lion-app-vqb5u.ondigitalocean.app',
+  process.env.CORS_ORIGIN,
+  'http://localhost:3000',
+  'http://localhost:3001'
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // permitir peticiones sin origin (como apps móviles o curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],

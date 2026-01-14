@@ -9,6 +9,7 @@ import { ProductModal } from "@/components/dashboard/modals/ProductModal"
 import { CategoryModal } from "@/components/dashboard/modals/CategoryModal"
 import { useApi } from "@/hooks/useApi"
 import { useTheme } from "@/contexts/ThemeContext"
+import { getProductImageUrl } from "@/lib/utils"
 import type { MenuItem, Category, ProductForm } from "@/types"
 
 interface MenuManagementProps {
@@ -31,13 +32,6 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
   const [currentPage, setCurrentPage] = useState(1)
   const categoriesPerPage = 4
 
-  // Helper para construir URL de imagen
-  const getImageUrl = (url: string | null | undefined) => {
-    if (!url) return null
-    if (url.startsWith('http')) return url
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001'
-    return `${baseUrl}${url}`
-  }
 
   // Paginación de categorías
   const paginatedCategories = useMemo(() => {
@@ -142,7 +136,7 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
       await apiCall("menu.delete", { id: productId })
       // Eliminar del estado local
       setMenuItems(menuItems.filter((item: MenuItem) => item.id !== productId))
-      
+
       // 🔄 Refrescar inmediatamente desde el servidor para sincronizar
       if (onRefreshMenu) {
         await onRefreshMenu();
@@ -177,7 +171,7 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
       setNewCategoryName("")
       setNewCategoryDescription("")
       setIsCategoryModalOpen(false)
-      
+
       // 🔄 Refrescar inmediatamente desde el servidor para sincronizar
       if (onRefreshCategories) {
         await onRefreshCategories();
@@ -203,7 +197,7 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
       const updated = await apiCall("category.getAll")
       setCategories(updated)
       console.log("Categoría eliminada:", category.name)
-      
+
       // 🔄 Refrescar inmediatamente desde el servidor para sincronizar
       if (onRefreshCategories) {
         await onRefreshCategories();
@@ -289,7 +283,7 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
                               {item.image_url && (
                                 <div className="flex-shrink-0 w-12 h-12 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-gray-100">
                                   <img
-                                    src={getImageUrl(item.image_url) || '/placeholder.jpg'}
+                                    src={getProductImageUrl(item.image_url) || '/placeholder.jpg'}
                                     alt={item.name}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
@@ -353,7 +347,7 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
                           </CardContent>
                         </Card>
                       ))}
-                    
+
                     {/* Mensaje si hay más productos */}
                     {menuItems.filter((item) => item.category_id === category.id).length > 5 && (
                       <div className="text-center py-2">
@@ -396,7 +390,7 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
                 <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">Ant.</span>
               </Button>
-              
+
               <div className="flex items-center gap-0.5 sm:gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <Button
@@ -404,11 +398,10 @@ export function MenuManagement({ menuItems, setMenuItems, categories, setCategor
                     variant={currentPage === page ? "default" : "outline"}
                     size="sm"
                     onClick={() => goToPage(page)}
-                    className={`w-6 h-6 sm:w-10 sm:h-10 p-0 text-[10px] sm:text-sm ${
-                      currentPage === page 
-                        ? `bg-gradient-to-r ${theme.buttonPreset.gradient} text-white` 
+                    className={`w-6 h-6 sm:w-10 sm:h-10 p-0 text-[10px] sm:text-sm ${currentPage === page
+                        ? `bg-gradient-to-r ${theme.buttonPreset.gradient} text-white`
                         : ""
-                    }`}
+                      }`}
                   >
                     {page}
                   </Button>

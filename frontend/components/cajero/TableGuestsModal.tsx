@@ -23,19 +23,13 @@ import {
   Banknote, Smartphone, ArrowLeft, Check, Loader2, Package
 } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
+import { getProductImageUrl } from '@/lib/utils';
 
 // Función helper para formatear precios en formato colombiano
 const formatCOP = (amount: number) => {
   return Math.round(amount).toLocaleString('es-CO');
 };
 
-// Helper para construir URL de imagen
-const getImageUrl = (url: string | null | undefined) => {
-  if (!url) return null;
-  if (url.startsWith('http')) return url;
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001';
-  return `${baseUrl}${url}`;
-};
 
 interface Guest {
   id: number;
@@ -420,7 +414,7 @@ export function TableGuestsModal({
                           {item.menu_item.image_url && (
                             <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
                               <img
-                                src={getImageUrl(item.menu_item.image_url) || '/placeholder.jpg'}
+                                src={getProductImageUrl(item.menu_item.image_url) || '/placeholder.jpg'}
                                 alt={item.menu_item.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {

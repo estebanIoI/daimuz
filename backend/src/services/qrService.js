@@ -8,23 +8,23 @@ const QRCode = require('qrcode');
  */
 async function generateQR(tableId, waiterId) {
     const connection = await db.getConnection();
-    
+
     try {
         await connection.beginTransaction();
-        
+
         // Desactivar QRs anteriores de la mesa
         await connection.query(
             'UPDATE table_qr_codes SET is_active = FALSE WHERE table_id = ? AND is_active = TRUE',
             [tableId]
         );
-        
+
         // Generar token único
         const qrToken = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
-        
+
         // Obtener URL del frontend - prioridad: variable de entorno > settings > default
-        let baseUrl = 'http://localhost:3000';
-        
+        let baseUrl = 'https://daimuz.me';
+
         // Primero intentar obtener de settings
         try {
             const [settings] = await connection.query(
@@ -37,21 +37,21 @@ async function generateQR(tableId, waiterId) {
         } catch (e) {
             console.log('Using default frontend URL');
         }
-        
+
         // Variable de entorno tiene prioridad sobre settings
         if (process.env.FRONTEND_URL) {
             baseUrl = process.env.FRONTEND_URL;
         }
-        
+
         const qrUrl = `${baseUrl}/cliente/${qrToken}`;
-        
+
         // Insertar nuevo QR
         const [result] = await connection.query(
             `INSERT INTO table_qr_codes (table_id, qr_token, qr_url, created_by, expires_at) 
              VALUES (?, ?, ?, ?, ?)`,
             [tableId, qrToken, qrUrl, waiterId, expiresAt]
         );
-        
+
         // Generar imagen QR
         const qrImage = await QRCode.toDataURL(qrUrl, {
             width: 400,
@@ -61,9 +61,9 @@ async function generateQR(tableId, waiterId) {
                 light: '#FFFFFF'
             }
         });
-        
+
         await connection.commit();
-        
+
         return {
             id: result.insertId,
             qrToken,
@@ -72,7 +72,7 @@ async function generateQR(tableId, waiterId) {
             tableId,
             expiresAt
         };
-        
+
     } catch (error) {
         await connection.rollback();
         throw error;
@@ -94,11 +94,11 @@ async function validateQR(qrToken) {
          AND qc.expires_at > NOW()`,
         [qrToken]
     );
-    
+
     if (rows.length === 0) {
         throw new Error('QR inválido o expirado');
     }
-    
+
     return rows[0];
 }
 
@@ -115,11 +115,11 @@ async function getActiveByTable(tableId) {
          LIMIT 1`,
         [tableId]
     );
-    
+
     if (rows.length === 0) {
         return null;
     }
-    
+
     // Regenerar imagen QR para el código activo
     const qrImage = await QRCode.toDataURL(rows[0].qr_url, {
         width: 400,
@@ -129,7 +129,7 @@ async function getActiveByTable(tableId) {
             light: '#FFFFFF'
         }
     });
-    
+
     return {
         ...rows[0],
         qrImage
@@ -145,13 +145,13 @@ async function deactivateQR(tableId) {
         'UPDATE table_guests SET is_active = FALSE WHERE table_id = ?',
         [tableId]
     );
-    
+
     // Desactivar el QR
     await db.query(
         'UPDATE table_qr_codes SET is_active = FALSE WHERE table_id = ?',
         [tableId]
     );
-    
+
     return { success: true };
 }
 

@@ -9,6 +9,7 @@ import { Plus, Minus, Loader2 } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatters';
+import { getProductImageUrl } from '@/lib/utils';
 
 interface CartItem {
   id: number;
@@ -48,13 +49,6 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('');
 
-  // Helper para construir URL de imagen
-  const getImageUrl = (url: string | null | undefined) => {
-    if (!url) return null;
-    if (url.startsWith('http')) return url;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001';
-    return `${baseUrl}${url}`;
-  };
 
   useEffect(() => {
     loadMenu();
@@ -66,15 +60,15 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
         apiCall('category.getPublic', {}),
         apiCall('menu.getPublic', {})
       ]);
-      
+
       const activeCategories = categoriesData.filter((c: Category) => c.active);
       setCategories(activeCategories);
       setMenuItems(itemsData.filter((i: MenuItem) => i.available));
-      
+
       if (activeCategories.length > 0) {
         setActiveTab(activeCategories[0].id.toString());
       }
-      
+
       setLoading(false);
     } catch (error) {
       toast.error('Error al cargar el menú');
@@ -130,8 +124,8 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
           <TabsList className="inline-flex w-max md:w-full md:flex gap-1 bg-white/10 backdrop-blur p-1.5 rounded-xl">
             {categories.map(category => (
-              <TabsTrigger 
-                key={category.id} 
+              <TabsTrigger
+                key={category.id}
                 value={category.id.toString()}
                 className="whitespace-nowrap px-4 py-2 text-sm md:text-base md:flex-1 min-w-[80px] text-white/80 font-medium rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-200 hover:text-white hover:bg-white/10"
               >
@@ -151,13 +145,13 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
               .filter(item => item.category_id === category.id)
               .map(item => {
                 const quantityInCart = getItemQuantityInCart(item.id);
-                
+
                 return (
                   <Card key={item.id} className="overflow-hidden hover:shadow-xl transition-all bg-white/95 backdrop-blur">
                     {item.image_url && (
                       <div className="h-48 sm:h-44 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center p-2">
-                        <img 
-                          src={getImageUrl(item.image_url) || '/placeholder.jpg'} 
+                        <img
+                          src={getProductImageUrl(item.image_url) || '/placeholder.jpg'}
                           alt={item.name}
                           className="max-w-full max-h-full object-contain hover:scale-105 transition-transform drop-shadow-md"
                           onError={(e) => {
@@ -173,24 +167,24 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
                           {formatCurrency(item.price)}
                         </Badge>
                       </div>
-                      
+
                       {item.description && (
                         <p className="text-xs text-gray-600 mb-3 line-clamp-2">
                           {item.description}
                         </p>
                       )}
-                      
+
                       <div className="flex items-center justify-between">
                         {item.preparation_time && (
                           <span className="text-xs text-gray-500">
                             ⏱️ {item.preparation_time} min
                           </span>
                         )}
-                        
+
                         {quantityInCart > 0 ? (
                           <div className="flex items-center gap-2 ml-auto">
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               className="h-8 w-8 p-0"
                               onClick={() => handleDecrease(item)}
@@ -200,8 +194,8 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
                             <span className="font-bold min-w-[24px] text-center">
                               {quantityInCart}
                             </span>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               className="h-8 w-8 p-0"
                               onClick={() => handleAdd(item)}
@@ -210,7 +204,7 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
                             </Button>
                           </div>
                         ) : (
-                          <Button 
+                          <Button
                             size="sm"
                             className="ml-auto bg-purple-600 hover:bg-purple-700"
                             onClick={() => handleAdd(item)}
@@ -225,7 +219,7 @@ export default function MenuCatalog({ onAddToCart, cart }: MenuCatalogProps) {
                 );
               })}
           </div>
-          
+
           {menuItems.filter(item => item.category_id === category.id).length === 0 && (
             <div className="text-center py-8">
               <p className="text-purple-200">No hay productos en esta categoría</p>
